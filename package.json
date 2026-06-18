@@ -5,21 +5,44 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "next-sitemap",
     "start": "next start",
+    "audit:monetization": "tsx scripts/monetization-audit.ts",
+    "fix:monetization": "tsx scripts/monetization-fix.ts",
+    "restore:wp-content": "tsx scripts/wp-restore-content-from-mdx.ts",
+    "build:monetization-production": "tsx scripts/build-monetization-production.ts",
+    "check:monetization-production": "tsx scripts/check-monetization-production.ts",
+    "report:monetization": "tsx scripts/weekly-monetization-report.ts",
+    "gate:monetization": "tsx scripts/monetization-gate.ts",
+    "auth:wp": "tsx scripts/wp-auth-diagnose.ts",
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.0",
+    "@next/mdx": "latest",
+    "@tailwindcss/typography": "latest",
+    "contentlayer2": "latest",
+    "esbuild": "latest",
+    "mdx-bundler": "latest",
     "next": "16.2.4",
+    "next-contentlayer2": "latest",
+    "next-sitemap": "latest",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "rehype-highlight": "latest",
+    "rehype-slug": "latest",
+    "tsx": "^4.21.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/mdx": "latest",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

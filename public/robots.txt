@@ -1,0 +1,9 @@
+# *
+User-agent: *
+Allow: /
+
+# Host
+Host: https://stacklogs.net
+
+# Sitemaps
+Sitemap: https://stacklogs.net/sitemap.xml

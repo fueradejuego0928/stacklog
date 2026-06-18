@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getPostBySlug, getAllPosts } from "@/lib/posts";
+import { getPostBySlug, getAllPosts, getRelatedPosts } from "@/lib/posts";
 import { useMDXComponent } from "next-contentlayer2/hooks";
 import AuthorProfile from "@/components/AuthorProfile";
+import ArticleCTA from "@/components/ArticleCTA";
+import TrackedLink from "@/components/TrackedLink";
+import { getCanonicalCategorySlug, getCategoryMeta, PRIMARY_CATEGORY_SLUGS } from "@/lib/categories";
+import { getPillarPagesByCategory } from "@/lib/pillars";
 
 export async function generateStaticParams() {
   return getAllPosts().map((post) => ({ slug: post.slug.split("/") }));
@@ -17,7 +21,7 @@ export async function generateMetadata({
   const post = getPostBySlug(slug.join("/"));
   if (!post) return {};
   return {
-    title: `${post.title} | Stacklog`,
+    title: post.title,
     description: post.description,
     alternates: {
       canonical: `https://stacklogs.net${post.url}`,
@@ -32,15 +36,11 @@ export async function generateMetadata({
   };
 }
 
-const categoryLabel: Record<string, string> = {
-  "ai-saas": "AIツール・SaaS",
-  "fukugyou": "副業",
-};
-
 function PostContent({ code }: { code: string }) {
   const MDXContent = useMDXComponent(code);
   return (
     <div className="prose">
+      {/* eslint-disable-next-line react-hooks/static-components */}
       <MDXContent />
     </div>
   );
@@ -54,12 +54,36 @@ export default async function PostPage({
   const { slug } = await params;
   const post = getPostBySlug(slug.join("/"));
   if (!post) notFound();
-  const relatedPosts = getAllPosts()
-    .filter((candidate) => candidate.category === post.category && candidate.slug !== post.slug)
-    .slice(0, 3);
+  const relatedPosts = getRelatedPosts(post);
+  const categoryMeta = getCategoryMeta(post.category);
+  const canonicalCategorySlug = getCanonicalCategorySlug(post.category);
+  const relatedPillars = getPillarPagesByCategory(canonicalCategorySlug).slice(0, 3);
+  const articleSchema = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: post.title,
+    description: post.description,
+    datePublished: post.date,
+    author: {
+      "@type": "Person",
+      name: "内藤善昭（Yoshi）",
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "Stacklogs",
+      url: "https://stacklogs.net",
+    },
+    mainEntityOfPage: `https://stacklogs.net${post.url}`,
+    articleSection: categoryMeta.label,
+    keywords: post.tags.join(", "),
+  };
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-12">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
+      />
       <div className="flex gap-12">
 
         {/* Main Content */}
@@ -76,11 +100,11 @@ export default async function PostPage({
             </Link>
             <span>/</span>
             <Link
-              href={`/posts?category=${post.category}`}
+              href={`/posts?category=${canonicalCategorySlug}`}
               style={{ color: 'var(--gray400)' }}
               className="hover:underline"
             >
-              {categoryLabel[post.category] ?? post.category}
+              {categoryMeta.label}
             </Link>
           </nav>
 
@@ -88,7 +112,7 @@ export default async function PostPage({
           <header className="mb-8">
             <div className="flex items-center gap-3 mb-4">
               <span className="category-badge">
-                {categoryLabel[post.category] ?? post.category}
+                {categoryMeta.label}
               </span>
               <time className="text-xs" style={{ color: 'var(--gray400)' }}>
                 {new Date(post.date).toLocaleDateString("ja-JP")}
@@ -96,7 +120,7 @@ export default async function PostPage({
             </div>
             <h1
               className="text-2xl font-bold leading-snug mb-3"
-              style={{ color: 'var(--navy)', fontFamily: 'var(--font-sora)' }}
+              style={{ color: 'var(--navy)', fontFamily: 'var(--font-inter)' }}
             >
               {post.title}
             </h1>
@@ -128,8 +152,52 @@ export default async function PostPage({
 
           <hr style={{ borderColor: 'var(--gray200)', marginBottom: 32 }} />
 
+          <div className="sl-pr-box">
+            この記事には広告・アフィリエイトリンクが含まれる場合があります。また、変更監視領域では関連サービスとしてQuiet Archiveを紹介することがあります。編集方針に基づき、向いているケース・向いていないケースの両方を記載します。
+          </div>
+
           {/* Article Body */}
           <PostContent code={post.body.code} />
+
+          <ArticleCTA
+            articleSlug={post.slug}
+            articleCategory={canonicalCategorySlug}
+            position="article_bottom"
+          />
+
+          {relatedPillars.length > 0 && (
+            <section className="mt-10 pt-6" style={{ borderTop: '1px solid var(--gray200)' }}>
+              <h2 className="text-lg font-bold mb-4" style={{ color: 'var(--navy)' }}>
+                関連ピラーページ
+              </h2>
+              <div className="space-y-3">
+                {relatedPillars.map((pillar) => (
+                  <TrackedLink
+                    key={pillar.slug}
+                    href={`/pillars/${pillar.slug}`}
+                    className="block rounded-lg p-4 transition-colors hover:bg-[var(--snow)]"
+                    style={{ border: '1px solid var(--gray200)' }}
+                    eventName="pillar_page_view"
+                    params={{
+                      article_slug: post.slug,
+                      article_category: canonicalCategorySlug,
+                      cta_type: "related_article",
+                      cta_label: pillar.title,
+                      destination_url: `/pillars/${pillar.slug}`,
+                      position: "article_related_pillars",
+                    }}
+                  >
+                    <p className="text-sm font-semibold mb-1" style={{ color: 'var(--navy)' }}>
+                      {pillar.title}
+                    </p>
+                    <p className="text-xs leading-relaxed" style={{ color: 'var(--gray400)' }}>
+                      {pillar.description}
+                    </p>
+                  </TrackedLink>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Tags */}
           {post.tags.length > 0 && (
@@ -158,11 +226,20 @@ export default async function PostPage({
               </h2>
               <div className="space-y-3">
                 {relatedPosts.map((relatedPost) => (
-                  <Link
+                  <TrackedLink
                     key={relatedPost.slug}
                     href={relatedPost.url}
                     className="block rounded-lg p-4 transition-colors hover:bg-[var(--snow)]"
                     style={{ border: '1px solid var(--gray200)' }}
+                    eventName="related_article_click"
+                    params={{
+                      article_slug: post.slug,
+                      article_category: canonicalCategorySlug,
+                      cta_type: "related_article",
+                      cta_label: relatedPost.title,
+                      destination_url: relatedPost.url,
+                      position: "article_related",
+                    }}
                   >
                     <p className="text-sm font-semibold mb-1" style={{ color: 'var(--navy)' }}>
                       {relatedPost.title}
@@ -170,7 +247,7 @@ export default async function PostPage({
                     <p className="text-xs leading-relaxed" style={{ color: 'var(--gray400)' }}>
                       {relatedPost.description}
                     </p>
-                  </Link>
+                  </TrackedLink>
                 ))}
               </div>
             </section>
@@ -183,36 +260,11 @@ export default async function PostPage({
         <aside className="w-64 shrink-0 hidden lg:block">
           <div className="sticky top-20 space-y-6">
 
-            {/* Quiet Archive CTA */}
-            <div
-              className="rounded-xl p-5"
-              style={{
-                background: 'var(--navy)',
-                border: '1px solid var(--navy-mid)',
-              }}
-            >
-              <p
-                className="text-xs font-semibold mb-1 tracking-wider uppercase"
-                style={{ color: 'var(--teal)' }}
-              >
-                著者のプロダクト
-              </p>
-              <p className="text-sm font-bold mb-2" style={{ color: '#fff' }}>
-                Quiet Archive
-              </p>
-              <p className="text-xs leading-relaxed mb-4" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                URLの変更を自動検知するWebサービス。競合サイト・規制ページの監視に。
-              </p>
-              <a
-                href="https://quietarchive.net"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="sl-btn-teal w-full text-center block"
-                style={{ fontSize: 12 }}
-              >
-                無料で試す →
-              </a>
-            </div>
+            <ArticleCTA
+              articleSlug={post.slug}
+              articleCategory={canonicalCategorySlug}
+              position="article_sidebar"
+            />
 
             {/* Category Nav */}
             <div
@@ -226,22 +278,17 @@ export default async function PostPage({
                 カテゴリ
               </p>
               <div className="space-y-2">
-                <Link
-                  href="/posts?category=ai-saas"
-                  className="flex items-center justify-between text-sm hover:underline"
-                  style={{ color: 'var(--navy)' }}
-                >
-                  <span>AIツール・SaaS</span>
-                  <span style={{ color: 'var(--teal)' }}>→</span>
-                </Link>
-                <Link
-                  href="/posts?category=fukugyou"
-                  className="flex items-center justify-between text-sm hover:underline"
-                  style={{ color: 'var(--navy)' }}
-                >
-                  <span>副業</span>
-                  <span style={{ color: 'var(--teal)' }}>→</span>
-                </Link>
+                {PRIMARY_CATEGORY_SLUGS.map((categorySlug) => (
+                  <Link
+                    key={categorySlug}
+                    href={`/posts?category=${categorySlug}`}
+                    className="flex items-center justify-between text-sm hover:underline"
+                    style={{ color: 'var(--navy)' }}
+                  >
+                    <span>{getCategoryMeta(categorySlug).shortLabel}</span>
+                    <span style={{ color: 'var(--teal)' }}>→</span>
+                  </Link>
+                ))}
               </div>
             </div>
 
